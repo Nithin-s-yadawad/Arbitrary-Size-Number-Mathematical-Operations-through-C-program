@@ -1,0 +1,271 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_DIGITS 1000
+
+// Node to store each digit of the number
+typedef struct Node {
+    int digit;
+    struct Node* next;
+} Node;
+
+// Function to create a new node
+Node* createNode(int digit) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    newNode->digit = digit;
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Function to add a digit to the end of the number
+void appendDigit(Node** head, int digit) {
+    Node* newNode = createNode(digit);
+    if (*head == NULL) {
+        *head = newNode;
+    } else {
+        Node* temp = *head;
+        while (temp->next != NULL) {
+            temp = temp->next;
+        }
+        temp->next = newNode;
+    }
+}
+
+// Function to read a number from a file
+Node* readNumber(FILE* file) {
+    Node* head = NULL;
+    char ch;
+    while ((ch = fgetc(file)) != EOF && ch != '\n') {
+        appendDigit(&head, ch - '0');
+    }
+    return head;
+}
+
+// Function to print a number
+void printNumber(Node* head) {
+    Node* temp = head;
+    while (temp != NULL) {
+        printf("%d", temp->digit);
+        temp = temp->next;
+    }
+    printf("\n");
+}
+
+// Function to write a number to a file
+void writeNumberToFile(Node* head, FILE* file) {
+    Node* temp = head;
+    while (temp != NULL) {
+        fputc(temp->digit + '0', file);
+        temp = temp->next;
+    }
+    fputc('\n', file);
+}
+
+// Function to reverse a linked list
+Node* reverseList(Node* head) {
+    Node* prev = NULL;
+    Node* curr = head;
+    Node* next = NULL;
+    while (curr != NULL) {
+        next = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = next;
+    }
+    return prev;
+}
+
+// Function to add two large numbers
+Node* addNumbers(Node* num1, Node* num2) {
+    Node* result = NULL;
+    num1 = reverseList(num1);
+    num2 = reverseList(num2);
+    int carry = 0;
+
+    while (num1 != NULL || num2 != NULL || carry) {
+        int sum = carry;
+        if (num1 != NULL) {
+            sum += num1->digit;
+            num1 = num1->next;
+        }
+        if (num2 != NULL) {
+            sum += num2->digit;
+            num2 = num2->next;
+        }
+        carry = sum / 10;
+        appendDigit(&result, sum % 10);
+    }
+
+    return reverseList(result);
+}
+
+// Function to multiply two large numbers
+Node* multiplyNumbers(Node* num1, Node* num2) {
+    Node* result = createNode(0);
+    Node* temp1 = reverseList(num1);
+    Node* temp2 = reverseList(num2);
+    Node* current = result;
+
+    for (Node* n2 = temp2; n2 != NULL; n2 = n2->next) {
+        Node* tempResult = current;
+        int carry = 0;
+
+        for (Node* n1 = temp1; n1 != NULL; n1 = n1->next) {
+            int mul = n2->digit * n1->digit + carry + tempResult->digit;
+            tempResult->digit = mul % 10;
+            carry = mul / 10;
+
+            if (tempResult->next == NULL && (n1->next != NULL || carry != 0)) {
+                tempResult->next = createNode(0);
+            }
+            tempResult = tempResult->next;
+        }
+
+        current = current->next;
+    }
+
+    result = reverseList(result);
+    while (result->digit == 0 && result->next != NULL) {
+        Node* temp = result;
+        result = result->next;
+        free(temp);
+    }
+    return result;
+}
+
+// Helper function to compare two numbers
+int compareNumbers(Node* num1, Node* num2) {
+    while (num1 && num1->digit == 0) num1 = num1->next;
+    while (num2 && num2->digit == 0) num2 = num2->next;
+
+    int len1 = 0, len2 = 0;
+    Node* temp1 = num1;
+    Node* temp2 = num2;
+
+    while (temp1) {
+        len1++;
+        temp1 = temp1->next;
+    }
+    while (temp2) {
+        len2++;
+        temp2 = temp2->next;
+    }
+
+    if (len1 > len2) return 1;
+    if (len1 < len2) return -1;
+
+    while (num1 && num2) {
+        if (num1->digit > num2->digit) return 1;
+        if (num1->digit < num2->digit) return -1;
+        num1 = num1->next;
+        num2 = num2->next;
+    }
+
+    return 0;
+}
+
+// Function to subtract two large numbers
+Node* subtractNumbers(Node* num1, Node* num2) {
+    Node* result = NULL;
+    int borrow = 0;
+
+    num1 = reverseList(num1);
+    num2 = reverseList(num2);
+
+    while (num1 || num2) {
+        int sub = (num1 ? num1->digit : 0) - (num2 ? num2->digit : 0) - borrow;
+        if (sub < 0) {
+            sub += 10;
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+
+        appendDigit(&result, sub);
+
+        if (num1) num1 = num1->next;
+        if (num2) num2 = num2->next;
+    }
+
+    result = reverseList(result);
+
+    while (result && result->digit == 0) {
+        Node* temp = result;
+        result = result->next;
+        free(temp);
+    }
+
+    if (!result) {
+        result = createNode(0);
+    }
+
+    return result;
+}
+
+// Function to divide two large numbers
+Node* divideNumbers(Node* num1, Node* num2) {
+    if (compareNumbers(num1, num2) < 0) {
+        return createNode(0);
+    }
+
+    Node* quotient = NULL;
+    Node* currentDividend = NULL;
+
+    while (num1 != NULL) {
+        appendDigit(&currentDividend, num1->digit);
+
+        Node* count = createNode(0);
+        while (compareNumbers(currentDividend, num2) >= 0) {
+            currentDividend = subtractNumbers(currentDividend, num2);
+            count->digit++;
+        }
+
+        if (quotient == NULL && count->digit != 0) {
+            quotient = count;
+        } else if (quotient != NULL) {
+            appendDigit(&quotient, count->digit);
+        }
+
+        num1 = num1->next;
+    }
+
+    if (quotient == NULL) {
+        quotient = createNode(0);
+    }
+
+    return quotient;
+}
+
+int main() {
+    FILE* file = fopen("numbers.txt", "r");
+    if (!file) {
+        printf("Error opening file!\n");
+        return 1;
+    }
+
+    Node* num1 = readNumber(file);
+    Node* num2 = readNumber(file);
+
+    Node* sum = addNumbers(num1, num2);
+    Node* product = multiplyNumbers(num1, num2);
+    Node* quotient = divideNumbers(num1, num2);
+
+    fclose(file);
+
+    file = fopen("results.txt", "w");
+    if (!file) {
+        printf("Error opening file!\n");
+        return 1;
+    }
+
+    writeNumberToFile(num1, file);
+    writeNumberToFile(num2, file);
+    writeNumberToFile(sum, file);
+    writeNumberToFile(product, file);
+    writeNumberToFile(quotient, file);
+
+    fclose(file);
+
+    return 0;
+}
